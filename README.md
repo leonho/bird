@@ -1,6 +1,8 @@
 # bird 🐦
 
-`bird` is a focused command-line tool for posting tweets, replying, and reading tweet details using Twitter/X's GraphQL API. It keeps setup minimal while supporting common workflows for automation or scripting.
+`bird` is a fast X CLI for tweeting, replying, and reading — powered by cookies or Sweetistics.
+
+It keeps setup minimal while supporting common workflows for automation or scripting.
 
 ## Installation
 

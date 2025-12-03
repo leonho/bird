@@ -70,7 +70,10 @@ function loadConfig(): BirdConfig {
 
 const config = loadConfig();
 
-program.addHelpText('beforeAll', () => `${colors.banner('bird CLI')} ${colors.subtitle('— tweet from your terminal')}`);
+program.addHelpText(
+  'beforeAll',
+  () => `${colors.banner('bird CLI')} ${colors.subtitle('— fast X CLI for tweeting, replying, and reading')}`,
+);
 
 program.name('bird').description('Post tweets and replies via Twitter/X GraphQL API').version('0.1.0');
 
