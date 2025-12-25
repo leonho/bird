@@ -17,6 +17,7 @@ import JSON5 from 'json5';
 import kleur from 'kleur';
 import { resolveCliInvocation } from './lib/cli-args.js';
 import { resolveCredentials } from './lib/cookies.js';
+import { resolveEngineMode, shouldUseSweetistics, type EngineMode } from './lib/engine.js';
 import { extractTweetId } from './lib/extract-tweet-id.js';
 import { SweetisticsClient } from './lib/sweetistics-client.js';
 import { type TweetData, TwitterClient } from './lib/twitter-client.js';
@@ -130,11 +131,9 @@ program
   .option(
     '--engine <engine>',
     'Engine: graphql | sweetistics | auto',
-    process.env.BIRD_ENGINE || config.engine || 'graphql',
+    process.env.BIRD_ENGINE || config.engine || 'auto',
   )
   .option('--timeout <ms>', 'Request timeout in milliseconds');
-
-type EngineMode = 'graphql' | 'sweetistics' | 'auto';
 
 type MediaSpec = { path: string; alt?: string; mime: string; buffer: Buffer };
 
@@ -145,20 +144,6 @@ function resolveSweetisticsConfig(options: { sweetisticsApiKey?: string; sweetis
   const baseUrl = options.sweetisticsBaseUrl || process.env.SWEETISTICS_BASE_URL || 'https://sweetistics.com';
 
   return { apiKey, baseUrl };
-}
-
-function resolveEngineMode(value?: string): EngineMode {
-  const normalized = (value || 'auto').toLowerCase();
-  if (normalized === 'graphql' || normalized === 'sweetistics' || normalized === 'auto') {
-    return normalized;
-  }
-  return 'auto';
-}
-
-function shouldUseSweetistics(engine: EngineMode, hasApiKey: boolean): boolean {
-  if (engine === 'sweetistics') return true;
-  if (engine === 'graphql') return false;
-  return hasApiKey; // auto
 }
 
 function resolveTimeoutMs(...values: Array<string | number | undefined | null>): number | undefined {

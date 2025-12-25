@@ -2,6 +2,12 @@
 
 ## 0.1.1 — Unreleased
 
+### Changed
+- Engine default now `auto` (GraphQL primary; Sweetistics only on fallback when configured).
+
+### Tests
+- Add engine resolution tests for auto/default behavior.
+
 ### Fixed
 - GraphQL read: rotate TweetDetail query IDs with fallback to avoid 404s.
 

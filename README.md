@@ -44,9 +44,9 @@ bird mentions -n 5
 
 ## Engines
 
-- `--engine graphql` (default) — use Twitter/X GraphQL with cookies (Chrome/Firefox/env/flags).
+- `--engine auto` (default) — use GraphQL first; if a Sweetistics API key is available, fall back on errors.
+- `--engine graphql` — use Twitter/X GraphQL with cookies (Chrome/Firefox/env/flags).
 - `--engine sweetistics` — use Sweetistics API key (no browser cookies needed).
-- `--engine auto` — Sweetistics if a key is available, otherwise GraphQL.
 
 Global options:
 - `--timeout <ms>`: abort requests after the given timeout (milliseconds).
@@ -74,7 +74,7 @@ Example `~/.config/bird/config.json5`:
 
 ```json5
 {
-  engine: "graphql",
+  engine: "auto",
   firefoxProfile: "default-release",
   sweetisticsApiKey: "sweet-...",
   allowFirefox: true,
