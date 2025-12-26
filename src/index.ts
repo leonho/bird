@@ -21,6 +21,7 @@ import { type EngineMode, resolveEngineMode, shouldUseSweetistics } from './lib/
 import { extractTweetId } from './lib/extract-tweet-id.js';
 import { SweetisticsClient } from './lib/sweetistics-client.js';
 import { type TweetData, TwitterClient } from './lib/twitter-client.js';
+import { getCliVersion } from './lib/version.js';
 
 const program = new Command();
 
@@ -98,7 +99,7 @@ program.addHelpText(
   () => `${colors.banner('bird CLI')} ${colors.subtitle('— fast X CLI for tweeting, replying, and reading')}`,
 );
 
-program.name('bird').description('Post tweets and replies via Twitter/X GraphQL API').version('0.1.0');
+program.name('bird').description('Post tweets and replies via Twitter/X GraphQL API').version(getCliVersion());
 
 const formatExample = (command: string, description: string) =>
   `${colors.command(`  ${command}`)}\n${colors.muted(`    ${description}`)}`;
