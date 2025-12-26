@@ -55,6 +55,14 @@ const collect = (value: string, previous: string[] = []) => {
 const p = (kind: Parameters<typeof statusPrefix>[0]) => statusPrefix(kind, output);
 const l = (kind: Parameters<typeof labelPrefix>[0]) => labelPrefix(kind, output);
 
+function requireSweetisticsApiKey(apiKey: string | null): string {
+  if (!apiKey) {
+    console.error(`${p('err')}Sweetistics API key missing. Set SWEETISTICS_API_KEY or pass --sweetistics-api-key.`);
+    process.exit(1);
+  }
+  return apiKey;
+}
+
 function applyOutputFromCommand(command: Command) {
   const opts = command.optsWithGlobals() as { plain?: boolean; emoji?: boolean; color?: boolean };
   output = resolveOutputConfigFromCommander(opts, process.env, isTty);
@@ -399,10 +407,9 @@ program
       }
     }
 
-    if (media.length > 0) {
-      console.error(
-        `${p('err')}Media uploads are only supported via Sweetistics. Provide SWEETISTICS_API_KEY or --engine sweetistics.`,
-      );
+    const hasVideo = media.some((m) => m.mime.startsWith('video/'));
+    if (hasVideo) {
+      console.error(`${p('err')}Video uploads are only supported via Sweetistics (for now).`);
       process.exit(1);
     }
 
@@ -429,7 +436,21 @@ program
     }
 
     const client = new TwitterClient({ cookies, timeoutMs });
-    const result = await client.tweet(text);
+    let mediaIds: string[] | undefined;
+    if (media.length > 0) {
+      const uploaded: string[] = [];
+      for (const item of media) {
+        const res = await client.uploadMedia({ data: item.buffer, mimeType: item.mime, alt: item.alt });
+        if (!res.success || !res.mediaId) {
+          console.error(`${p('err')}Media upload failed: ${res.error ?? 'Unknown error'}`);
+          process.exit(1);
+        }
+        uploaded.push(res.mediaId);
+      }
+      mediaIds = uploaded;
+    }
+
+    const result = await client.tweet(text, mediaIds);
 
     if (result.success) {
       console.log(`${p('ok')}Tweet posted successfully!`);
@@ -438,7 +459,7 @@ program
       console.error(`${p('warn')}GraphQL tweet failed (${result.error}); trying Sweetistics fallback...`);
       const fallback = await new SweetisticsClient({
         baseUrl: sweetistics.baseUrl,
-        apiKey: sweetistics.apiKey,
+        apiKey: requireSweetisticsApiKey(sweetistics.apiKey),
         timeoutMs,
       }).tweet(text);
       if (fallback.success) {
@@ -526,10 +547,9 @@ program
       }
     }
 
-    if (media.length > 0) {
-      console.error(
-        `${p('err')}Media uploads are only supported via Sweetistics. Provide SWEETISTICS_API_KEY or --engine sweetistics.`,
-      );
+    const hasVideo = media.some((m) => m.mime.startsWith('video/'));
+    if (hasVideo) {
+      console.error(`${p('err')}Video uploads are only supported via Sweetistics (for now).`);
       process.exit(1);
     }
 
@@ -558,7 +578,21 @@ program
     console.error(`${p('info')}Replying to tweet: ${tweetId}`);
 
     const client = new TwitterClient({ cookies, timeoutMs });
-    const result = await client.reply(text, tweetId);
+    let mediaIds: string[] | undefined;
+    if (media.length > 0) {
+      const uploaded: string[] = [];
+      for (const item of media) {
+        const res = await client.uploadMedia({ data: item.buffer, mimeType: item.mime, alt: item.alt });
+        if (!res.success || !res.mediaId) {
+          console.error(`${p('err')}Media upload failed: ${res.error ?? 'Unknown error'}`);
+          process.exit(1);
+        }
+        uploaded.push(res.mediaId);
+      }
+      mediaIds = uploaded;
+    }
+
+    const result = await client.reply(text, tweetId, mediaIds);
 
     if (result.success) {
       console.log(`${p('ok')}Reply posted successfully!`);
@@ -567,7 +601,7 @@ program
       console.error(`${p('warn')}GraphQL reply failed (${result.error}); trying Sweetistics fallback...`);
       const fallback = await new SweetisticsClient({
         baseUrl: sweetistics.baseUrl,
-        apiKey: sweetistics.apiKey,
+        apiKey: requireSweetisticsApiKey(sweetistics.apiKey),
         timeoutMs,
       }).tweet(text, tweetId);
       if (fallback.success) {
@@ -666,7 +700,7 @@ program
       console.error(`${p('warn')}GraphQL read failed (${result.error}); trying Sweetistics fallback...`);
       const fallback = await new SweetisticsClient({
         baseUrl: sweetistics.baseUrl,
-        apiKey: sweetistics.apiKey,
+        apiKey: requireSweetisticsApiKey(sweetistics.apiKey),
         timeoutMs,
       }).read(tweetId);
       if (fallback.success && fallback.tweet) {
@@ -750,7 +784,7 @@ program
       console.error(`${p('warn')}GraphQL replies failed (${result.error}); trying Sweetistics fallback...`);
       const fallback = await new SweetisticsClient({
         baseUrl: sweetistics.baseUrl,
-        apiKey: sweetistics.apiKey,
+        apiKey: requireSweetisticsApiKey(sweetistics.apiKey),
         timeoutMs,
       }).replies(tweetId);
       if (fallback.success && fallback.tweets) {
@@ -825,7 +859,7 @@ program
       console.error(`${p('warn')}GraphQL thread failed (${result.error}); trying Sweetistics fallback...`);
       const fallback = await new SweetisticsClient({
         baseUrl: sweetistics.baseUrl,
-        apiKey: sweetistics.apiKey,
+        apiKey: requireSweetisticsApiKey(sweetistics.apiKey),
         timeoutMs,
       }).thread(tweetId);
       if (fallback.success && fallback.tweets) {
@@ -902,7 +936,7 @@ program
       console.error(`${p('warn')}GraphQL search failed (${result.error}); trying Sweetistics fallback...`);
       const fallback = await new SweetisticsClient({
         baseUrl: sweetistics.baseUrl,
-        apiKey: sweetistics.apiKey,
+        apiKey: requireSweetisticsApiKey(sweetistics.apiKey),
         timeoutMs,
       }).search(query, count);
       if (fallback.success && fallback.tweets) {
@@ -999,7 +1033,7 @@ program
           );
           const fallbackWho = await new SweetisticsClient({
             baseUrl: sweetistics.baseUrl,
-            apiKey: sweetistics.apiKey,
+            apiKey: requireSweetisticsApiKey(sweetistics.apiKey),
             timeoutMs,
           }).getCurrentUser();
           const fallbackHandle = normalizeHandle(fallbackWho.user?.username);
@@ -1027,7 +1061,7 @@ program
       console.error(`${p('warn')}GraphQL mentions failed (${result.error}); trying Sweetistics fallback...`);
       const fallback = await new SweetisticsClient({
         baseUrl: sweetistics.baseUrl,
-        apiKey: sweetistics.apiKey,
+        apiKey: requireSweetisticsApiKey(sweetistics.apiKey),
         timeoutMs,
       }).search(query, count);
       if (fallback.success && fallback.tweets) {
@@ -1123,7 +1157,7 @@ program
       if (shouldAllowSweetisticsFallback(engine, Boolean(sweetistics.apiKey))) {
         const fallback = await new SweetisticsClient({
           baseUrl: sweetistics.baseUrl,
-          apiKey: sweetistics.apiKey,
+          apiKey: requireSweetisticsApiKey(sweetistics.apiKey),
           timeoutMs,
         }).getCurrentUser();
         if (fallback.success && fallback.user) {

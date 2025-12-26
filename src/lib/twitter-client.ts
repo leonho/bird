@@ -8,6 +8,8 @@ import { runtimeQueryIds } from './runtime-query-ids.js';
 
 const TWITTER_API_BASE = 'https://x.com/i/api/graphql';
 const TWITTER_GRAPHQL_POST_URL = 'https://x.com/i/api/graphql';
+const TWITTER_UPLOAD_URL = 'https://upload.twitter.com/i/media/upload.json';
+const TWITTER_MEDIA_METADATA_URL = 'https://x.com/i/api/1.1/media/metadata/create.json';
 
 // Query IDs rotate frequently; the values in query-ids.json are refreshed by
 // scripts/update-query-ids.ts. The fallback values keep the client usable if
@@ -183,6 +185,12 @@ export interface TweetResult {
   error?: string;
 }
 
+export interface UploadMediaResult {
+  success: boolean;
+  mediaId?: string;
+  error?: string;
+}
+
 export interface TweetData {
   id: string;
   text: string;
@@ -332,10 +340,13 @@ export class TwitterClient {
   }
 
   private getHeaders(): Record<string, string> {
+    return this.getJsonHeaders();
+  }
+
+  private getBaseHeaders(): Record<string, string> {
     return {
       authorization:
         'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA',
-      'content-type': 'application/json',
       'x-csrf-token': this.ct0,
       'x-twitter-auth-type': 'OAuth2Session',
       'x-twitter-active-user': 'yes',
@@ -345,6 +356,167 @@ export class TwitterClient {
       origin: 'https://x.com',
       referer: 'https://x.com/',
     };
+  }
+
+  private getJsonHeaders(): Record<string, string> {
+    return {
+      ...this.getBaseHeaders(),
+      'content-type': 'application/json',
+    };
+  }
+
+  private getUploadHeaders(): Record<string, string> {
+    // Note: do not set content-type; URLSearchParams/FormData need to set it (incl boundary) themselves.
+    return this.getBaseHeaders();
+  }
+
+  private mediaCategoryForMime(mimeType: string): string | null {
+    if (mimeType.startsWith('image/')) {
+      if (mimeType === 'image/gif') return 'tweet_gif';
+      return 'tweet_image';
+    }
+    if (mimeType.startsWith('video/')) return 'tweet_video';
+    return null;
+  }
+
+  private async sleep(ms: number): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async uploadMedia(input: { data: Uint8Array; mimeType: string; alt?: string }): Promise<UploadMediaResult> {
+    const category = this.mediaCategoryForMime(input.mimeType);
+    if (!category) return { success: false, error: `Unsupported media type: ${input.mimeType}` };
+
+    // Keep scope small: images/gif first. Video requires longer processing + larger chunks.
+    if (input.mimeType.startsWith('video/')) {
+      return { success: false, error: 'Video uploads are not supported via GraphQL yet (use Sweetistics)' };
+    }
+
+    try {
+      const initParams = new URLSearchParams({
+        command: 'INIT',
+        total_bytes: String(input.data.byteLength),
+        media_type: input.mimeType,
+        media_category: category,
+      });
+
+      const initResp = await this.fetchWithTimeout(TWITTER_UPLOAD_URL, {
+        method: 'POST',
+        headers: this.getUploadHeaders(),
+        body: initParams,
+      });
+
+      if (!initResp.ok) {
+        const text = await initResp.text();
+        return { success: false, error: `HTTP ${initResp.status}: ${text.slice(0, 200)}` };
+      }
+
+      const initBody = (await initResp.json()) as { media_id_string?: string; media_id?: string | number };
+      const mediaId =
+        typeof initBody.media_id_string === 'string'
+          ? initBody.media_id_string
+          : initBody.media_id !== undefined
+            ? String(initBody.media_id)
+            : undefined;
+      if (!mediaId) return { success: false, error: 'Media upload INIT did not return media_id' };
+
+      const chunkSize = 5 * 1024 * 1024;
+      let segmentIndex = 0;
+      for (let offset = 0; offset < input.data.byteLength; offset += chunkSize) {
+        const chunk = input.data.slice(offset, Math.min(input.data.byteLength, offset + chunkSize));
+        const form = new FormData();
+        form.set('command', 'APPEND');
+        form.set('media_id', mediaId);
+        form.set('segment_index', String(segmentIndex));
+        form.set('media', new Blob([chunk], { type: input.mimeType }), 'media');
+
+        const appendResp = await this.fetchWithTimeout(TWITTER_UPLOAD_URL, {
+          method: 'POST',
+          headers: this.getUploadHeaders(),
+          body: form,
+        });
+
+        if (!appendResp.ok) {
+          const text = await appendResp.text();
+          return { success: false, error: `HTTP ${appendResp.status}: ${text.slice(0, 200)}` };
+        }
+        segmentIndex += 1;
+      }
+
+      const finalizeParams = new URLSearchParams({ command: 'FINALIZE', media_id: mediaId });
+      const finalizeResp = await this.fetchWithTimeout(TWITTER_UPLOAD_URL, {
+        method: 'POST',
+        headers: this.getUploadHeaders(),
+        body: finalizeParams,
+      });
+
+      if (!finalizeResp.ok) {
+        const text = await finalizeResp.text();
+        return { success: false, error: `HTTP ${finalizeResp.status}: ${text.slice(0, 200)}` };
+      }
+
+      const finalizeBody = (await finalizeResp.json()) as {
+        processing_info?: {
+          state?: string;
+          check_after_secs?: number;
+          error?: { message?: string; name?: string };
+        };
+      };
+
+      const info = finalizeBody.processing_info;
+      if (info?.state && info.state !== 'succeeded') {
+        let attempts = 0;
+        while (attempts < 20) {
+          if (info.state === 'failed') {
+            const msg = info.error?.message || info.error?.name || 'Media processing failed';
+            return { success: false, error: msg };
+          }
+          const delaySecs = Number.isFinite(info.check_after_secs) ? Math.max(1, info.check_after_secs as number) : 2;
+          await this.sleep(delaySecs * 1000);
+
+          const statusUrl = `${TWITTER_UPLOAD_URL}?${new URLSearchParams({ command: 'STATUS', media_id: mediaId })}`;
+          const statusResp = await this.fetchWithTimeout(statusUrl, {
+            method: 'GET',
+            headers: this.getUploadHeaders(),
+          });
+
+          if (!statusResp.ok) {
+            const text = await statusResp.text();
+            return { success: false, error: `HTTP ${statusResp.status}: ${text.slice(0, 200)}` };
+          }
+
+          const statusBody = (await statusResp.json()) as {
+            processing_info?: {
+              state?: string;
+              check_after_secs?: number;
+              error?: { message?: string; name?: string };
+            };
+          };
+          if (!statusBody.processing_info) break;
+          info.state = statusBody.processing_info.state;
+          info.check_after_secs = statusBody.processing_info.check_after_secs;
+          info.error = statusBody.processing_info.error;
+          if (info.state === 'succeeded') break;
+          attempts += 1;
+        }
+      }
+
+      if (input.alt) {
+        const metaResp = await this.fetchWithTimeout(TWITTER_MEDIA_METADATA_URL, {
+          method: 'POST',
+          headers: this.getJsonHeaders(),
+          body: JSON.stringify({ media_id: mediaId, alt_text: { text: input.alt } }),
+        });
+        if (!metaResp.ok) {
+          const text = await metaResp.text();
+          return { success: false, error: `HTTP ${metaResp.status}: ${text.slice(0, 200)}` };
+        }
+      }
+
+      return { success: true, mediaId };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
   }
 
   private firstText(...values: Array<string | undefined | null>): string | undefined {
@@ -998,12 +1170,12 @@ export class TwitterClient {
   /**
    * Post a new tweet
    */
-  async tweet(text: string): Promise<TweetResult> {
+  async tweet(text: string, mediaIds?: string[]): Promise<TweetResult> {
     const variables = {
       tweet_text: text,
       dark_request: false,
       media: {
-        media_entities: [],
+        media_entities: (mediaIds ?? []).map((id) => ({ media_id: id, tagged_users: [] })),
         possibly_sensitive: false,
       },
       semantic_annotation_ids: [],
@@ -1052,7 +1224,7 @@ export class TwitterClient {
   /**
    * Reply to an existing tweet
    */
-  async reply(text: string, replyToTweetId: string): Promise<TweetResult> {
+  async reply(text: string, replyToTweetId: string, mediaIds?: string[]): Promise<TweetResult> {
     const variables = {
       tweet_text: text,
       reply: {
@@ -1061,7 +1233,7 @@ export class TwitterClient {
       },
       dark_request: false,
       media: {
-        media_entities: [],
+        media_entities: (mediaIds ?? []).map((id) => ({ media_id: id, tagged_users: [] })),
         possibly_sensitive: false,
       },
       semantic_annotation_ids: [],

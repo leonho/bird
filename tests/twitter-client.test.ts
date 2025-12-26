@@ -83,6 +83,36 @@ describe('TwitterClient', () => {
       expect(body.features.creator_subscriptions_tweet_preview_api_enabled).toBe(true);
     });
 
+    it('supports attaching media IDs', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            create_tweet: {
+              tweet_results: {
+                result: {
+                  rest_id: '1234567890',
+                },
+              },
+            },
+          },
+        }),
+      });
+
+      const client = new TwitterClient({ cookies: validCookies });
+      const result = await client.tweet('Hello world!', ['111', '222']);
+
+      expect(result.success).toBe(true);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      const [, options] = mockFetch.mock.calls[0];
+      const body = JSON.parse(options.body);
+      expect(body.variables.media.media_entities).toEqual([
+        { media_id: '111', tagged_users: [] },
+        { media_id: '222', tagged_users: [] },
+      ]);
+    });
+
     it('retries CreateTweet via /i/api/graphql when operation URL 404s', async () => {
       mockFetch
         .mockResolvedValueOnce({
@@ -184,6 +214,75 @@ describe('TwitterClient', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Tweet created but no ID returned');
+    });
+  });
+
+  describe('uploadMedia', () => {
+    let mockFetch: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      mockFetch = vi.fn();
+      global.fetch = mockFetch;
+    });
+
+    it('uploads an image and sets alt text', async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ media_id_string: '999' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({}),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+        });
+
+      const client = new TwitterClient({ cookies: validCookies });
+      const data = new Uint8Array([1, 2, 3, 4]);
+      const result = await client.uploadMedia({ data, mimeType: 'image/png', alt: 'alt text' });
+
+      expect(result.success).toBe(true);
+      expect(result.mediaId).toBe('999');
+      expect(mockFetch).toHaveBeenCalledTimes(4);
+
+      const [initUrl, initOptions] = mockFetch.mock.calls[0];
+      expect(String(initUrl)).toContain('upload.twitter.com');
+      expect(initOptions.method).toBe('POST');
+      expect(initOptions.body).toBeInstanceOf(URLSearchParams);
+      expect((initOptions.body as URLSearchParams).get('command')).toBe('INIT');
+      expect((initOptions.body as URLSearchParams).get('media_type')).toBe('image/png');
+
+      const [, appendOptions] = mockFetch.mock.calls[1];
+      expect(appendOptions.method).toBe('POST');
+      expect(appendOptions.body).toBeInstanceOf(FormData);
+      const appendBody = appendOptions.body as FormData;
+      expect(appendBody.get('command')).toBe('APPEND');
+      expect(appendBody.get('media_id')).toBe('999');
+      expect(appendBody.get('segment_index')).toBe('0');
+      expect(appendBody.get('media')).toBeInstanceOf(Blob);
+
+      const [, finalizeOptions] = mockFetch.mock.calls[2];
+      expect(finalizeOptions.body).toBeInstanceOf(URLSearchParams);
+      expect((finalizeOptions.body as URLSearchParams).get('command')).toBe('FINALIZE');
+      expect((finalizeOptions.body as URLSearchParams).get('media_id')).toBe('999');
+
+      const [metaUrl, metaOptions] = mockFetch.mock.calls[3];
+      expect(String(metaUrl)).toContain('/media/metadata/create.json');
+      expect(metaOptions.method).toBe('POST');
+      expect(JSON.parse(metaOptions.body)).toEqual({ media_id: '999', alt_text: { text: 'alt text' } });
+    });
+
+    it('rejects video uploads', async () => {
+      const client = new TwitterClient({ cookies: validCookies });
+      const data = new Uint8Array([1, 2, 3]);
+      const result = await client.uploadMedia({ data, mimeType: 'video/mp4' });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Video uploads are not supported');
     });
   });
 

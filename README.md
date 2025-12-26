@@ -126,10 +126,12 @@ Exit codes:
 
 `bird --version` prints `package.json` version plus current git sha when available, e.g. `0.2.0 (3df7969b)`.
 
-## Media uploads (Sweetistics only)
+## Media uploads
 
 - Attach media with `--media` (repeatable) and optional `--alt` per item.
-- Up to 4 images, or 1 video (no mixing). Supported: jpg, jpeg, png, webp, gif, mp4, mov.
+- Up to 4 images/GIFs, or 1 video (no mixing). Supported: jpg, jpeg, png, webp, gif, mp4, mov.
+- `--engine graphql`: images/GIFs supported (uploads via Twitter legacy upload endpoint + cookies).
+- `--engine sweetistics`: images + video supported (requires `SWEETISTICS_API_KEY`).
 
 Example:
 
