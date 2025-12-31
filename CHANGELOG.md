@@ -8,6 +8,11 @@
 ### Changed
 - Cookie extraction now uses `@steipete/sweet-cookie` (drops `sqlite3` CLI + custom browser readers in `bird`).
 - Query ID updater now tracks the Bookmarks GraphQL operation.
+- Lint rules stricter (block statements, top-level regex, import extension enforcement).
+
+### Tests
+- Coverage thresholds raised to 90% statements/lines/functions (80% branches).
+- Added targeted Twitter client coverage suites.
 
 ## 0.4.0 — 2025-12-26
 
