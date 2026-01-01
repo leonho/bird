@@ -551,9 +551,7 @@ describe('TwitterClient bookmark folders', () => {
     expect(result.success).toBe(true);
     expect(mockFetch).toHaveBeenCalledTimes(2);
 
-    const firstVars = JSON.parse(
-      new URL(mockFetch.mock.calls[0][0] as string).searchParams.get('variables') as string,
-    );
+    const firstVars = JSON.parse(new URL(mockFetch.mock.calls[0][0] as string).searchParams.get('variables') as string);
     const secondVars = JSON.parse(
       new URL(mockFetch.mock.calls[1][0] as string).searchParams.get('variables') as string,
     );

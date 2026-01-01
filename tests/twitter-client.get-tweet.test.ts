@@ -172,9 +172,7 @@ describe('TwitterClient getTweet', () => {
     const result = await client.getTweet('article123');
 
     expect(result.success).toBe(true);
-    expect(result.tweet?.text).toBe(
-      '2025 LLM Year in Review\n\nIntro paragraph of the article.\n\nSecond paragraph.',
-    );
+    expect(result.tweet?.text).toBe('2025 LLM Year in Review\n\nIntro paragraph of the article.\n\nSecond paragraph.');
   });
 
   it('should fall back to user article timeline for plain text', async () => {

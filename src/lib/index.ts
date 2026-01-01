@@ -8,7 +8,6 @@ export {
   type TwitterCookies,
 } from './cookies.js';
 export { runtimeQueryIds } from './runtime-query-ids.js';
-export type { TweetResult, UploadMediaResult } from './twitter-client-types.js';
 export {
   type CurrentUserResult,
   type FollowingResult,
@@ -19,3 +18,4 @@ export {
   type TwitterClientOptions,
   type TwitterUser,
 } from './twitter-client.js';
+export type { TweetResult, UploadMediaResult } from './twitter-client-types.js';

@@ -1,3 +1,4 @@
+import type { AbstractConstructor, TwitterClientBase } from './twitter-client-base.js';
 import {
   SETTINGS_NAME_REGEX,
   SETTINGS_SCREEN_NAME_REGEX,
@@ -5,7 +6,6 @@ import {
   TWITTER_API_BASE,
 } from './twitter-client-constants.js';
 import { buildFollowingFeatures } from './twitter-client-features.js';
-import { type AbstractConstructor, type TwitterClientBase } from './twitter-client-base.js';
 import type { CurrentUserResult, FollowingResult } from './twitter-client-types.js';
 import { parseUsersFromInstructions } from './twitter-client-utils.js';
 

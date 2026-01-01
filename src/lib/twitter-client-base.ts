@@ -1,11 +1,11 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { QUERY_IDS, TARGET_QUERY_ID_OPERATIONS, type OperationName } from './twitter-client-constants.js';
 import { runtimeQueryIds } from './runtime-query-ids.js';
-import { normalizeQuoteDepth } from './twitter-client-utils.js';
+import { type OperationName, QUERY_IDS, TARGET_QUERY_ID_OPERATIONS } from './twitter-client-constants.js';
 import type { CurrentUserResult, TwitterClientOptions } from './twitter-client-types.js';
+import { normalizeQuoteDepth } from './twitter-client-utils.js';
 
-export type Constructor<T = {}> = new (...args: any[]) => T;
-export type AbstractConstructor<T = {}> = abstract new (...args: any[]) => T;
+export type Constructor<T = object> = new (...args: unknown[]) => T;
+export type AbstractConstructor<T = object> = abstract new (...args: unknown[]) => T;
 
 export abstract class TwitterClientBase {
   protected authToken: string;
@@ -59,9 +59,7 @@ export abstract class TwitterClientBase {
 
   protected async getSearchTimelineQueryIds(): Promise<string[]> {
     const primary = await this.getQueryId('SearchTimeline');
-    return Array.from(
-      new Set([primary, 'M1jEez78PEfVfbQLvlWMvQ', '5h0kNbk3ii97rmfY6CdgAA', 'Tp1sewRU1AsZpBWhqCZicQ']),
-    );
+    return Array.from(new Set([primary, 'M1jEez78PEfVfbQLvlWMvQ', '5h0kNbk3ii97rmfY6CdgAA', 'Tp1sewRU1AsZpBWhqCZicQ']));
   }
 
   protected async fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {

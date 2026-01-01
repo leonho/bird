@@ -6,7 +6,9 @@ import { withTimelines } from './twitter-client-timelines.js';
 import { withTweetDetails } from './twitter-client-tweet-detail.js';
 import { withUsers } from './twitter-client-users.js';
 
-const MixedTwitterClient = withUsers(withTimelines(withSearch(withTweetDetails(withPosting(withMedia(TwitterClientBase))))));
+const MixedTwitterClient = withUsers(
+  withTimelines(withSearch(withTweetDetails(withPosting(withMedia(TwitterClientBase))))),
+);
 
 export class TwitterClient extends MixedTwitterClient {}
 
@@ -16,8 +18,8 @@ export type {
   GetTweetResult,
   SearchResult,
   TweetData,
-  TwitterClientOptions,
   TweetResult,
+  TwitterClientOptions,
   TwitterUser,
   UploadMediaResult,
 } from './twitter-client-types.js';

@@ -1,6 +1,6 @@
+import type { AbstractConstructor, TwitterClientBase } from './twitter-client-base.js';
 import { TWITTER_API_BASE } from './twitter-client-constants.js';
 import { buildArticleFeatures, buildArticleFieldToggles, buildTweetDetailFeatures } from './twitter-client-features.js';
-import { type AbstractConstructor, type TwitterClientBase } from './twitter-client-base.js';
 import type { GetTweetResult, GraphqlTweetResult, SearchResult } from './twitter-client-types.js';
 import {
   extractArticleText,

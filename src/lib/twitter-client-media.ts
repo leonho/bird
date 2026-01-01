@@ -1,5 +1,5 @@
+import type { AbstractConstructor, TwitterClientBase } from './twitter-client-base.js';
 import { TWITTER_MEDIA_METADATA_URL, TWITTER_UPLOAD_URL } from './twitter-client-constants.js';
-import { type AbstractConstructor, type TwitterClientBase } from './twitter-client-base.js';
 import type { UploadMediaResult } from './twitter-client-types.js';
 
 export function withMedia<TBase extends AbstractConstructor<TwitterClientBase>>(Base: TBase) {

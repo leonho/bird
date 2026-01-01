@@ -1,10 +1,6 @@
-import {
-  TWITTER_API_BASE,
-  TWITTER_GRAPHQL_POST_URL,
-  TWITTER_STATUS_UPDATE_URL,
-} from './twitter-client-constants.js';
+import type { AbstractConstructor, TwitterClientBase } from './twitter-client-base.js';
+import { TWITTER_API_BASE, TWITTER_GRAPHQL_POST_URL, TWITTER_STATUS_UPDATE_URL } from './twitter-client-constants.js';
 import { buildTweetCreateFeatures } from './twitter-client-features.js';
-import { type AbstractConstructor, type TwitterClientBase } from './twitter-client-base.js';
 import type { CreateTweetResponse, TweetResult } from './twitter-client-types.js';
 
 export function withPosting<TBase extends AbstractConstructor<TwitterClientBase>>(Base: TBase) {

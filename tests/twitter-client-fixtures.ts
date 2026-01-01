@@ -1,4 +1,4 @@
-import { TwitterClient } from '../src/lib/twitter-client.js';
+import type { TwitterClient } from '../src/lib/twitter-client.js';
 
 export const validCookies = {
   authToken: 'test_auth_token',
