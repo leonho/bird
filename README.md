@@ -87,13 +87,19 @@ bird query-ids --fresh
 - `bird check` — show which credentials are available and where they were sourced from.
 
 Global options:
-- `--timeout <ms>`: abort requests after the given timeout (milliseconds).
+- `--auth-token <token>`: set the `auth_token` cookie manually.
+- `--ct0 <token>`: set the `ct0` cookie manually.
+- `--cookie-source <safari|chrome|firefox>`: choose browser cookie source (repeatable; order matters).
+- `--chrome-profile <name>`: Chrome profile for cookie extraction.
+- `--firefox-profile <name>`: Firefox profile for cookie extraction.
 - `--cookie-timeout <ms>`: cookie extraction timeout for keychain/OS helpers (milliseconds).
+- `--timeout <ms>`: abort requests after the given timeout (milliseconds).
 - `--quote-depth <n>`: max quoted tweet depth in JSON output (default: 1; 0 disables).
 - `--plain`: stable output (no emoji, no color).
 - `--no-emoji`: disable emoji output.
 - `--no-color`: disable ANSI colors (or set `NO_COLOR=1`).
-- `--cookie-source <safari|chrome|firefox>`: choose browser cookie source (repeatable; order matters).
+- `--media <path>`: attach media file (repeatable, up to 4 images or 1 video).
+- `--alt <text>`: alt text for the corresponding `--media` (repeatable).
 
 ## Authentication (GraphQL)
 
@@ -142,7 +148,7 @@ Environment shortcuts:
 
 ## Output
 
-- `--json` prints raw tweet objects for read/replies/thread/search/mentions/bookmarks.
+- `--json` prints raw tweet objects for read/replies/thread/search/mentions/bookmarks/likes.
 - `read` returns full text for Notes and Articles when present.
 - Use `--plain` for stable, script-friendly output (no emoji, no color).
 
