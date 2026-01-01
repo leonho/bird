@@ -4,6 +4,7 @@
 
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { TwitterCookies } from './cookies.js';
+// biome-ignore lint/correctness/useImportExtensions: JSON module import doesn't use .js extension.
 import queryIds from './query-ids.json' with { type: 'json' };
 import { runtimeQueryIds } from './runtime-query-ids.js';
 
@@ -12,6 +13,9 @@ const TWITTER_GRAPHQL_POST_URL = 'https://x.com/i/api/graphql';
 const TWITTER_UPLOAD_URL = 'https://upload.twitter.com/i/media/upload.json';
 const TWITTER_MEDIA_METADATA_URL = 'https://x.com/i/api/1.1/media/metadata/create.json';
 const TWITTER_STATUS_UPDATE_URL = 'https://x.com/i/api/1.1/statuses/update.json';
+const SETTINGS_SCREEN_NAME_REGEX = /"screen_name":"([^"]+)"/;
+const SETTINGS_USER_ID_REGEX = /"user_id"\s*:\s*"(\d+)"/;
+const SETTINGS_NAME_REGEX = /"name":"([^"\\]*(?:\\.[^"\\]*)*)"/;
 
 // Query IDs rotate frequently; the values in query-ids.json are refreshed by
 // scripts/update-query-ids.ts. The fallback values keep the client usable if
@@ -24,6 +28,8 @@ const FALLBACK_QUERY_IDS = {
   SearchTimeline: 'M1jEez78PEfVfbQLvlWMvQ',
   UserArticlesTweets: '8zBy9h4L90aDL02RsBcCFg',
   Bookmarks: 'RV1g3b8n_SGOHwkqKYSCFw',
+  Likes: 'JR2gceKucIKcVNB_9JkhsA',
+  BookmarkFolderTimeline: 'KJIQpsvxrTfRIlbaRIySHQ',
 } as const;
 
 type OperationName = keyof typeof FALLBACK_QUERY_IDS;
@@ -356,7 +362,9 @@ export class TwitterClient {
       | undefined,
     tweetId: string,
   ) {
-    if (!instructions) return undefined;
+    if (!instructions) {
+      return undefined;
+    }
 
     for (const instruction of instructions) {
       for (const entry of instruction.entries || []) {
@@ -418,10 +426,14 @@ export class TwitterClient {
 
   private mediaCategoryForMime(mimeType: string): string | null {
     if (mimeType.startsWith('image/')) {
-      if (mimeType === 'image/gif') return 'tweet_gif';
+      if (mimeType === 'image/gif') {
+        return 'tweet_gif';
+      }
       return 'tweet_image';
     }
-    if (mimeType.startsWith('video/')) return 'tweet_video';
+    if (mimeType.startsWith('video/')) {
+      return 'tweet_video';
+    }
     return null;
   }
 
@@ -431,7 +443,9 @@ export class TwitterClient {
 
   async uploadMedia(input: { data: Uint8Array; mimeType: string; alt?: string }): Promise<UploadMediaResult> {
     const category = this.mediaCategoryForMime(input.mimeType);
-    if (!category) return { success: false, error: `Unsupported media type: ${input.mimeType}` };
+    if (!category) {
+      return { success: false, error: `Unsupported media type: ${input.mimeType}` };
+    }
 
     try {
       const initParams = new URLSearchParams({
@@ -459,7 +473,9 @@ export class TwitterClient {
           : initBody.media_id !== undefined
             ? String(initBody.media_id)
             : undefined;
-      if (!mediaId) return { success: false, error: 'Media upload INIT did not return media_id' };
+      if (!mediaId) {
+        return { success: false, error: 'Media upload INIT did not return media_id' };
+      }
 
       const chunkSize = 5 * 1024 * 1024;
       let segmentIndex = 0;
@@ -515,7 +531,10 @@ export class TwitterClient {
           const delaySecs = Number.isFinite(info.check_after_secs) ? Math.max(1, info.check_after_secs as number) : 2;
           await this.sleep(delaySecs * 1000);
 
-          const statusUrl = `${TWITTER_UPLOAD_URL}?${new URLSearchParams({ command: 'STATUS', media_id: mediaId })}`;
+          const statusUrl = `${TWITTER_UPLOAD_URL}?${new URLSearchParams({
+            command: 'STATUS',
+            media_id: mediaId,
+          }).toString()}`;
           const statusResp = await this.fetchWithTimeout(statusUrl, {
             method: 'GET',
             headers: this.getUploadHeaders(),
@@ -533,11 +552,15 @@ export class TwitterClient {
               error?: { message?: string; name?: string };
             };
           };
-          if (!statusBody.processing_info) break;
+          if (!statusBody.processing_info) {
+            break;
+          }
           info.state = statusBody.processing_info.state;
           info.check_after_secs = statusBody.processing_info.check_after_secs;
           info.error = statusBody.processing_info.error;
-          if (info.state === 'succeeded') break;
+          if (info.state === 'succeeded') {
+            break;
+          }
           attempts += 1;
         }
       }
@@ -564,15 +587,21 @@ export class TwitterClient {
     for (const value of values) {
       if (typeof value === 'string') {
         const trimmed = value.trim();
-        if (trimmed) return trimmed;
+        if (trimmed) {
+          return trimmed;
+        }
       }
     }
     return undefined;
   }
 
   private collectTextFields(value: unknown, keys: Set<string>, output: string[]): void {
-    if (!value) return;
-    if (typeof value === 'string') return;
+    if (!value) {
+      return;
+    }
+    if (typeof value === 'string') {
+      return;
+    }
 
     if (Array.isArray(value)) {
       for (const item of value) {
@@ -586,7 +615,9 @@ export class TwitterClient {
         if (keys.has(key)) {
           if (typeof nested === 'string') {
             const trimmed = nested.trim();
-            if (trimmed) output.push(trimmed);
+            if (trimmed) {
+              output.push(trimmed);
+            }
             continue;
           }
         }
@@ -599,7 +630,9 @@ export class TwitterClient {
     const seen = new Set<string>();
     const result: string[] = [];
     for (const value of values) {
-      if (seen.has(value)) continue;
+      if (seen.has(value)) {
+        continue;
+      }
       seen.add(value);
       result.push(value);
     }
@@ -608,7 +641,9 @@ export class TwitterClient {
 
   private extractArticleText(result: GraphqlTweetResult | undefined): string | undefined {
     const article = result?.article;
-    if (!article) return undefined;
+    if (!article) {
+      return undefined;
+    }
 
     const articleResult = article.article_results?.result ?? article;
     if (process.env.BIRD_DEBUG_ARTICLE === '1') {
@@ -673,7 +708,9 @@ export class TwitterClient {
 
   private extractNoteTweetText(result: GraphqlTweetResult | undefined): string | undefined {
     const note = result?.note_tweet?.note_tweet_results?.result;
-    if (!note) return undefined;
+    if (!note) {
+      return undefined;
+    }
 
     return this.firstText(
       note.text,
@@ -704,10 +741,14 @@ export class TwitterClient {
     const username = userLegacy?.screen_name ?? userCore?.screen_name;
     const name = userLegacy?.name ?? userCore?.name ?? username;
     const userId = userResult?.rest_id;
-    if (!result?.rest_id || !username) return undefined;
+    if (!result?.rest_id || !username) {
+      return undefined;
+    }
 
     const text = this.extractTweetText(result);
-    if (!text) return undefined;
+    if (!text) {
+      return undefined;
+    }
 
     let quotedTweet: TweetData | undefined;
     if (quoteDepth > 0) {
@@ -774,7 +815,9 @@ export class TwitterClient {
   }): GraphqlTweetResult[] {
     const results: GraphqlTweetResult[] = [];
     const pushResult = (result?: GraphqlTweetResult) => {
-      if (result?.rest_id) results.push(result);
+      if (result?.rest_id) {
+        results.push(result);
+      }
     };
 
     const content = entry.content;
@@ -841,7 +884,9 @@ export class TwitterClient {
         const results = this.collectTweetResultsFromEntry(entry);
         for (const result of results) {
           const mapped = this.mapTweetResult(result);
-          if (!mapped || seen.has(mapped.id)) continue;
+          if (!mapped || seen.has(mapped.id)) {
+            continue;
+          }
           seen.add(mapped.id);
           tweets.push(mapped);
         }
@@ -988,7 +1033,7 @@ export class TwitterClient {
     });
 
     const queryId = await this.getQueryId('UserArticlesTweets');
-    const url = `${TWITTER_API_BASE}/${queryId}/UserArticlesTweets?${params}`;
+    const url = `${TWITTER_API_BASE}/${queryId}/UserArticlesTweets?${params.toString()}`;
 
     try {
       const response = await this.fetchWithTimeout(url, { method: 'GET', headers: this.getHeaders() });
@@ -1022,7 +1067,9 @@ export class TwitterClient {
       for (const instruction of instructions) {
         for (const entry of instruction.entries ?? []) {
           const result = entry.content?.itemContent?.tweet_results?.result;
-          if (result?.rest_id !== tweetId) continue;
+          if (result?.rest_id !== tweetId) {
+            continue;
+          }
           const articleResult = result.article?.article_results?.result;
           const title = this.firstText(articleResult?.title, result.article?.title);
           const plainText = this.firstText(articleResult?.plain_text, result.article?.plain_text);
@@ -1131,7 +1178,7 @@ export class TwitterClient {
         const queryIds = await this.getTweetDetailQueryIds();
 
         for (const queryId of queryIds) {
-          const url = `${TWITTER_API_BASE}/${queryId}/TweetDetail?${params}`;
+          const url = `${TWITTER_API_BASE}/${queryId}/TweetDetail?${params.toString()}`;
           const response = await this.fetchWithTimeout(url, {
             method: 'GET',
             headers: this.getHeaders(),
@@ -1384,12 +1431,16 @@ export class TwitterClient {
 
           if (data.errors && data.errors.length > 0) {
             const fallback = await this.tryStatusUpdateFallback(data.errors, variables);
-            if (fallback) return fallback;
+            if (fallback) {
+              return fallback;
+            }
             return { success: false, error: this.formatErrors(data.errors) };
           }
 
           const tweetId = data.data?.create_tweet?.tweet_results?.result?.rest_id;
-          if (tweetId) return { success: true, tweetId };
+          if (tweetId) {
+            return { success: true, tweetId };
+          }
 
           return { success: false, error: 'Tweet created but no ID returned' };
         }
@@ -1407,7 +1458,9 @@ export class TwitterClient {
 
       if (data.errors && data.errors.length > 0) {
         const fallback = await this.tryStatusUpdateFallback(data.errors, variables);
-        if (fallback) return fallback;
+        if (fallback) {
+          return fallback;
+        }
         return {
           success: false,
           error: this.formatErrors(data.errors),
@@ -1446,7 +1499,9 @@ export class TwitterClient {
     mediaIds?: string[];
   } | null {
     const text = typeof variables.tweet_text === 'string' ? variables.tweet_text : null;
-    if (!text) return null;
+    if (!text) {
+      return null;
+    }
 
     const reply = variables.reply;
     const inReplyToTweetId =
@@ -1518,7 +1573,9 @@ export class TwitterClient {
       const tweetId =
         typeof data.id_str === 'string' ? data.id_str : data.id !== undefined ? String(data.id) : undefined;
 
-      if (tweetId) return { success: true, tweetId };
+      if (tweetId) {
+        return { success: true, tweetId };
+      }
       return { success: false, error: 'Tweet created but no ID returned' };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
@@ -1529,12 +1586,18 @@ export class TwitterClient {
     errors: Array<{ message: string; code?: number }>,
     variables: Record<string, unknown>,
   ): Promise<TweetResult | null> {
-    if (!errors.some((error) => error.code === 226)) return null;
+    if (!errors.some((error) => error.code === 226)) {
+      return null;
+    }
     const input = this.statusUpdateInputFromCreateTweetVariables(variables);
-    if (!input) return null;
+    if (!input) {
+      return null;
+    }
 
     const fallback = await this.postStatusUpdate(input);
-    if (fallback.success) return fallback;
+    if (fallback.success) {
+      return fallback;
+    }
 
     return {
       success: false,
@@ -1543,8 +1606,12 @@ export class TwitterClient {
   }
 
   private async ensureClientUserId(): Promise<void> {
-    if (process.env.NODE_ENV === 'test') return;
-    if (this.clientUserId) return;
+    if (process.env.NODE_ENV === 'test') {
+      return;
+    }
+    if (this.clientUserId) {
+      return;
+    }
     const result = await this.getCurrentUser();
     if (result.success && result.user?.id) {
       this.clientUserId = result.user.id;
@@ -1574,7 +1641,7 @@ export class TwitterClient {
       const queryIds = await this.getSearchTimelineQueryIds();
 
       for (const queryId of queryIds) {
-        const url = `${TWITTER_API_BASE}/${queryId}/SearchTimeline?${params}`;
+        const url = `${TWITTER_API_BASE}/${queryId}/SearchTimeline?${params.toString()}`;
 
         try {
           const response = await this.fetchWithTimeout(url, {
@@ -1654,12 +1721,16 @@ export class TwitterClient {
     };
 
     const firstAttempt = await tryOnce();
-    if (firstAttempt.success) return { success: true, tweets: firstAttempt.tweets };
+    if (firstAttempt.success) {
+      return { success: true, tweets: firstAttempt.tweets };
+    }
 
     if (firstAttempt.had404) {
       await this.refreshQueryIds();
       const secondAttempt = await tryOnce();
-      if (secondAttempt.success) return { success: true, tweets: secondAttempt.tweets };
+      if (secondAttempt.success) {
+        return { success: true, tweets: secondAttempt.tweets };
+      }
       return { success: false, error: secondAttempt.error };
     }
 
@@ -1761,9 +1832,9 @@ export class TwitterClient {
         }
 
         const html = await response.text();
-        const usernameMatch = html.match(/"screen_name":"([^"]+)"/);
-        const idMatch = html.match(/"user_id"\s*:\s*"(\d+)"/);
-        const nameMatch = html.match(/"name":"([^"\\]*(?:\\.[^"\\]*)*)"/);
+        const usernameMatch = SETTINGS_SCREEN_NAME_REGEX.exec(html);
+        const idMatch = SETTINGS_USER_ID_REGEX.exec(html);
+        const nameMatch = SETTINGS_NAME_REGEX.exec(html);
 
         const username = usernameMatch?.[1];
         const userId = idMatch?.[1];
@@ -1797,7 +1868,9 @@ export class TwitterClient {
    */
   async getReplies(tweetId: string): Promise<SearchResult> {
     const response = await this.fetchTweetDetail(tweetId);
-    if (!response.success) return response;
+    if (!response.success) {
+      return response;
+    }
 
     const instructions = response.data.threaded_conversation_with_injections_v2?.instructions;
     const tweets = this.parseTweetsFromInstructions(instructions);
@@ -1811,7 +1884,9 @@ export class TwitterClient {
    */
   async getThread(tweetId: string): Promise<SearchResult> {
     const response = await this.fetchTweetDetail(tweetId);
-    if (!response.success) return response;
+    if (!response.success) {
+      return response;
+    }
 
     const instructions = response.data.threaded_conversation_with_injections_v2?.instructions;
     const tweets = this.parseTweetsFromInstructions(instructions);
@@ -1829,10 +1904,10 @@ export class TwitterClient {
     return { success: true, tweets: thread };
   }
 
-  private buildBookmarksFeatures(): Record<string, boolean> {
+  // Shared timeline features for likes/bookmarks-style timelines.
+  private buildTimelineFeatures(): Record<string, boolean> {
     return {
       ...this.buildSearchFeatures(),
-      graphql_timeline_v2_bookmark_timeline: true,
       blue_business_profile_image_shape_enabled: true,
       responsive_web_text_conversations_enabled: false,
       tweetypie_unmention_optimization_enabled: true,
@@ -1844,9 +1919,25 @@ export class TwitterClient {
     };
   }
 
+  private buildBookmarksFeatures(): Record<string, boolean> {
+    return {
+      ...this.buildTimelineFeatures(),
+      graphql_timeline_v2_bookmark_timeline: true,
+    };
+  }
+
+  private buildLikesFeatures(): Record<string, boolean> {
+    return this.buildTimelineFeatures();
+  }
+
   private async getBookmarksQueryIds(): Promise<string[]> {
     const primary = await this.getQueryId('Bookmarks');
     return Array.from(new Set([primary, 'RV1g3b8n_SGOHwkqKYSCFw', 'tmd4ifV8RHltzn8ymGg1aw']));
+  }
+
+  private async getBookmarkFolderQueryIds(): Promise<string[]> {
+    const primary = await this.getQueryId('BookmarkFolderTimeline');
+    return Array.from(new Set([primary, 'KJIQpsvxrTfRIlbaRIySHQ']));
   }
 
   /**
@@ -1874,7 +1965,7 @@ export class TwitterClient {
       const queryIds = await this.getBookmarksQueryIds();
 
       for (const queryId of queryIds) {
-        const url = `${TWITTER_API_BASE}/${queryId}/Bookmarks?${params}`;
+        const url = `${TWITTER_API_BASE}/${queryId}/Bookmarks?${params.toString()}`;
 
         try {
           const response = await this.fetchWithTimeout(url, {
@@ -1931,12 +2022,235 @@ export class TwitterClient {
     };
 
     const firstAttempt = await tryOnce();
-    if (firstAttempt.success) return { success: true, tweets: firstAttempt.tweets };
+    if (firstAttempt.success) {
+      return { success: true, tweets: firstAttempt.tweets };
+    }
 
     if (firstAttempt.had404) {
       await this.refreshQueryIds();
       const secondAttempt = await tryOnce();
-      if (secondAttempt.success) return { success: true, tweets: secondAttempt.tweets };
+      if (secondAttempt.success) {
+        return { success: true, tweets: secondAttempt.tweets };
+      }
+      return { success: false, error: secondAttempt.error };
+    }
+
+    return { success: false, error: firstAttempt.error };
+  }
+  private async getLikesQueryIds(): Promise<string[]> {
+    const primary = await this.getQueryId('Likes');
+    return Array.from(new Set([primary, 'JR2gceKucIKcVNB_9JkhsA']));
+  }
+
+  /**
+   * Get the authenticated user's liked tweets
+   */
+  async getLikes(count = 20): Promise<SearchResult> {
+    const userResult = await this.getCurrentUser();
+    if (!userResult.success || !userResult.user) {
+      return { success: false, error: userResult.error ?? 'Could not determine current user' };
+    }
+
+    const variables = {
+      userId: userResult.user.id,
+      count,
+      includePromotedContent: false,
+      withClientEventToken: false,
+      withBirdwatchNotes: false,
+      withVoice: true,
+    };
+
+    const features = this.buildLikesFeatures();
+
+    const params = new URLSearchParams({
+      variables: JSON.stringify(variables),
+      features: JSON.stringify(features),
+    });
+
+    const tryOnce = async () => {
+      let lastError: string | undefined;
+      let had404 = false;
+      const queryIds = await this.getLikesQueryIds();
+
+      for (const queryId of queryIds) {
+        const url = `${TWITTER_API_BASE}/${queryId}/Likes?${params.toString()}`;
+
+        try {
+          const response = await this.fetchWithTimeout(url, {
+            method: 'GET',
+            headers: this.getHeaders(),
+          });
+
+          if (response.status === 404) {
+            had404 = true;
+            lastError = `HTTP ${response.status}`;
+            continue;
+          }
+
+          if (!response.ok) {
+            const text = await response.text();
+            return { success: false as const, error: `HTTP ${response.status}: ${text.slice(0, 200)}`, had404 };
+          }
+
+          const data = (await response.json()) as {
+            data?: {
+              user?: {
+                result?: {
+                  timeline?: {
+                    timeline?: {
+                      instructions?: Array<{
+                        entries?: Array<{
+                          content?: {
+                            itemContent?: {
+                              tweet_results?: {
+                                result?: GraphqlTweetResult;
+                              };
+                            };
+                          };
+                        }>;
+                      }>;
+                    };
+                  };
+                };
+              };
+            };
+            errors?: Array<{ message: string }>;
+          };
+
+          if (data.errors && data.errors.length > 0) {
+            return { success: false as const, error: data.errors.map((e) => e.message).join(', '), had404 };
+          }
+
+          const instructions = data.data?.user?.result?.timeline?.timeline?.instructions;
+          const tweets = this.parseTweetsFromInstructions(instructions);
+
+          return { success: true as const, tweets, had404 };
+        } catch (error) {
+          lastError = error instanceof Error ? error.message : String(error);
+        }
+      }
+
+      return { success: false as const, error: lastError ?? 'Unknown error fetching likes', had404 };
+    };
+
+    const firstAttempt = await tryOnce();
+    if (firstAttempt.success) {
+      return { success: true, tweets: firstAttempt.tweets };
+    }
+
+    if (firstAttempt.had404) {
+      await this.refreshQueryIds();
+      const secondAttempt = await tryOnce();
+      if (secondAttempt.success) {
+        return { success: true, tweets: secondAttempt.tweets };
+      }
+      return { success: false, error: secondAttempt.error };
+    }
+
+    return { success: false, error: firstAttempt.error };
+  }
+
+  /**
+   * Get the authenticated user's bookmark folder timeline
+   */
+  async getBookmarkFolderTimeline(folderId: string, count = 20): Promise<SearchResult> {
+    const variablesWithCount = {
+      bookmark_collection_id: folderId,
+      includePromotedContent: true,
+      count,
+    };
+
+    const variablesWithoutCount = {
+      bookmark_collection_id: folderId,
+      includePromotedContent: true,
+    };
+
+    const features = this.buildBookmarksFeatures();
+
+    const tryOnce = async (variables: Record<string, unknown>) => {
+      let lastError: string | undefined;
+      let had404 = false;
+      const queryIds = await this.getBookmarkFolderQueryIds();
+
+      const params = new URLSearchParams({
+        variables: JSON.stringify(variables),
+        features: JSON.stringify(features),
+      });
+
+      for (const queryId of queryIds) {
+        const url = `${TWITTER_API_BASE}/${queryId}/BookmarkFolderTimeline?${params.toString()}`;
+
+        try {
+          const response = await this.fetchWithTimeout(url, {
+            method: 'GET',
+            headers: this.getHeaders(),
+          });
+
+          if (response.status === 404) {
+            had404 = true;
+            lastError = `HTTP ${response.status}`;
+            continue;
+          }
+
+          if (!response.ok) {
+            const text = await response.text();
+            return { success: false as const, error: `HTTP ${response.status}: ${text.slice(0, 200)}`, had404 };
+          }
+
+          const data = (await response.json()) as {
+            data?: {
+              bookmark_collection_timeline?: {
+                timeline?: {
+                  instructions?: Array<{
+                    entries?: Array<{
+                      content?: {
+                        itemContent?: {
+                          tweet_results?: {
+                            result?: GraphqlTweetResult;
+                          };
+                        };
+                      };
+                    }>;
+                  }>;
+                };
+              };
+            };
+            errors?: Array<{ message: string }>;
+          };
+
+          if (data.errors && data.errors.length > 0) {
+            return { success: false as const, error: data.errors.map((e) => e.message).join(', '), had404 };
+          }
+
+          const instructions = data.data?.bookmark_collection_timeline?.timeline?.instructions;
+          const tweets = this.parseTweetsFromInstructions(instructions);
+
+          return { success: true as const, tweets, had404 };
+        } catch (error) {
+          lastError = error instanceof Error ? error.message : String(error);
+        }
+      }
+
+      return { success: false as const, error: lastError ?? 'Unknown error fetching bookmark folder', had404 };
+    };
+
+    let firstAttempt = await tryOnce(variablesWithCount);
+    if (!firstAttempt.success && firstAttempt.error?.includes('Variable "$count"')) {
+      firstAttempt = await tryOnce(variablesWithoutCount);
+    }
+    if (firstAttempt.success) {
+      return { success: true, tweets: firstAttempt.tweets };
+    }
+
+    if (firstAttempt.had404) {
+      await this.refreshQueryIds();
+      let secondAttempt = await tryOnce(variablesWithCount);
+      if (!secondAttempt.success && secondAttempt.error?.includes('Variable "$count"')) {
+        secondAttempt = await tryOnce(variablesWithoutCount);
+      }
+      if (secondAttempt.success) {
+        return { success: true, tweets: secondAttempt.tweets };
+      }
       return { success: false, error: secondAttempt.error };
     }
 

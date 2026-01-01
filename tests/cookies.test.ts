@@ -18,8 +18,6 @@ vi.mock('@steipete/sweet-cookie', () => ({
   }),
 }));
 
-const itIfDarwin = process.platform === 'darwin' ? it : it.skip;
-
 describe('cookies', () => {
   const originalEnv = process.env;
 
@@ -63,7 +61,10 @@ describe('cookies', () => {
       expect(result.cookies.source).toContain('Firefox');
     });
 
-    itIfDarwin('honors cookieSource=safari', async () => {
+    it('honors cookieSource=safari', async () => {
+      if (process.platform !== 'darwin') {
+        return;
+      }
       sweet.results.set('safari', {
         cookies: [
           { name: 'auth_token', value: 'safari_auth', domain: 'x.com' },
@@ -191,10 +192,64 @@ describe('cookies', () => {
       expect(result.cookies.ct0).toBe('test_ct0');
       expect(result.cookies.source).toContain('Chrome');
     });
+
+    it('uses default browser order when cookieSource is omitted', async () => {
+      sweet.results.set('safari', { cookies: [], warnings: [] });
+      sweet.results.set('chrome', { cookies: [], warnings: [] });
+      sweet.results.set('firefox', {
+        cookies: [
+          { name: 'auth_token', value: 'firefox_auth', domain: 'x.com' },
+          { name: 'ct0', value: 'firefox_ct0', domain: 'x.com' },
+        ],
+        warnings: [],
+      });
+
+      const { resolveCredentials } = await import('../src/lib/cookies.js');
+      const result = await resolveCredentials({});
+
+      expect(result.cookies.authToken).toBe('firefox_auth');
+      expect(result.cookies.ct0).toBe('firefox_ct0');
+      expect(result.cookies.source).toContain('Firefox');
+    });
+
+    it('prefers twitter.com cookies when x.com is missing', async () => {
+      sweet.results.set('chrome', {
+        cookies: [
+          { name: 'auth_token', value: 'twitter_auth', domain: 'twitter.com' },
+          { name: 'ct0', value: 'twitter_ct0', domain: 'twitter.com' },
+        ],
+        warnings: [],
+      });
+
+      const { resolveCredentials } = await import('../src/lib/cookies.js');
+      const result = await resolveCredentials({ cookieSource: 'chrome' });
+
+      expect(result.cookies.authToken).toBe('twitter_auth');
+      expect(result.cookies.ct0).toBe('twitter_ct0');
+    });
+
+    it('falls back to the first cookie when no domain matches', async () => {
+      sweet.results.set('firefox', {
+        cookies: [
+          { name: 'auth_token', value: 'first_auth', domain: 'example.com' },
+          { name: 'ct0', value: 'first_ct0', domain: 'example.com' },
+        ],
+        warnings: [],
+      });
+
+      const { resolveCredentials } = await import('../src/lib/cookies.js');
+      const result = await resolveCredentials({ cookieSource: 'firefox' });
+
+      expect(result.cookies.authToken).toBe('first_auth');
+      expect(result.cookies.ct0).toBe('first_ct0');
+    });
   });
 
   describe('extractCookiesFromSafari', () => {
-    itIfDarwin('returns cookies from Safari', async () => {
+    it('returns cookies from Safari', async () => {
+      if (process.platform !== 'darwin') {
+        return;
+      }
       sweet.results.set('safari', {
         cookies: [
           { name: 'auth_token', value: 'safari_auth', domain: 'x.com' },
@@ -211,7 +266,10 @@ describe('cookies', () => {
       expect(result.cookies.source).toBe('Safari');
     });
 
-    itIfDarwin('prefers Safari over Chrome when both are available', async () => {
+    it('prefers Safari over Chrome when both are available', async () => {
+      if (process.platform !== 'darwin') {
+        return;
+      }
       sweet.results.set('safari', {
         cookies: [
           { name: 'auth_token', value: 'safari_auth', domain: 'x.com' },

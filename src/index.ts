@@ -17,6 +17,7 @@ import JSON5 from 'json5';
 import kleur from 'kleur';
 import { resolveCliInvocation } from './lib/cli-args.js';
 import { type CookieSource, resolveCredentials } from './lib/cookies.js';
+import { extractBookmarkFolderId } from './lib/extract-bookmark-folder-id.js';
 import { extractTweetId } from './lib/extract-tweet-id.js';
 import { mentionsQueryFromUserOption, normalizeHandle } from './lib/normalize-handle.js';
 import {
@@ -32,16 +33,19 @@ import { runtimeQueryIds } from './lib/runtime-query-ids.js';
 import { type TweetData, TwitterClient } from './lib/twitter-client.js';
 import { getCliVersion } from './lib/version.js';
 
-const program = new Command();
+const program: Command = new Command();
 
-const rawArgs = process.argv.slice(2);
-const normalizedArgs = rawArgs[0] === '--' ? rawArgs.slice(1) : rawArgs;
-const isTty = process.stdout.isTTY;
+const rawArgs: string[] = process.argv.slice(2);
+const normalizedArgs: string[] = rawArgs[0] === '--' ? rawArgs.slice(1) : rawArgs;
+const isTty: boolean = process.stdout.isTTY;
 let output: OutputConfig = resolveOutputConfigFromArgv(normalizedArgs, process.env, isTty);
 kleur.enabled = output.color;
 
-const wrap = (styler: (text: string) => string) => (text: string) => (isTty ? styler(text) : text);
-const collect = (value: string, previous: string[] = []) => {
+const wrap =
+  (styler: (text: string) => string): ((text: string) => string) =>
+  (text: string): string =>
+    isTty ? styler(text) : text;
+const collect = (value: string, previous: string[] = []): string[] => {
   previous.push(value);
   return previous;
 };
@@ -50,16 +54,22 @@ const COOKIE_SOURCES: CookieSource[] = ['safari', 'chrome', 'firefox'];
 
 function parseCookieSource(value: string): CookieSource {
   const normalized = value.trim().toLowerCase();
-  if (normalized === 'safari' || normalized === 'chrome' || normalized === 'firefox') return normalized;
+  if (normalized === 'safari' || normalized === 'chrome' || normalized === 'firefox') {
+    return normalized;
+  }
   throw new Error(`Invalid --cookie-source "${value}". Allowed: safari, chrome, firefox.`);
 }
 
 function resolveCookieSourceOrder(input: unknown): CookieSource[] | undefined {
-  if (typeof input === 'string') return [parseCookieSource(input)];
+  if (typeof input === 'string') {
+    return [parseCookieSource(input)];
+  }
   if (Array.isArray(input)) {
     const result: CookieSource[] = [];
     for (const entry of input) {
-      if (typeof entry !== 'string') continue;
+      if (typeof entry !== 'string') {
+        continue;
+      }
       result.push(parseCookieSource(entry));
     }
     return result.length > 0 ? result : undefined;
@@ -67,15 +77,15 @@ function resolveCookieSourceOrder(input: unknown): CookieSource[] | undefined {
   return undefined;
 }
 
-const collectCookieSource = (value: string, previous: CookieSource[] = []) => {
+const collectCookieSource = (value: string, previous: CookieSource[] = []): CookieSource[] => {
   previous.push(parseCookieSource(value));
   return previous;
 };
 
-const p = (kind: Parameters<typeof statusPrefix>[0]) => statusPrefix(kind, output);
-const l = (kind: Parameters<typeof labelPrefix>[0]) => labelPrefix(kind, output);
+const p = (kind: Parameters<typeof statusPrefix>[0]): string => statusPrefix(kind, output);
+const l = (kind: Parameters<typeof labelPrefix>[0]): string => labelPrefix(kind, output);
 
-function applyOutputFromCommand(command: Command) {
+function applyOutputFromCommand(command: Command): void {
   const opts = command.optsWithGlobals() as { plain?: boolean; emoji?: boolean; color?: boolean };
   output = resolveOutputConfigFromCommander(opts, process.env, isTty);
   kleur.enabled = output.color;
@@ -103,7 +113,9 @@ type BirdConfig = {
 };
 
 function readConfigFile(path: string): Partial<BirdConfig> {
-  if (!existsSync(path)) return {};
+  if (!existsSync(path)) {
+    return {};
+  }
   try {
     const raw = readFileSync(path, 'utf8');
     const parsed = JSON5.parse(raw) as Partial<BirdConfig>;
@@ -140,6 +152,7 @@ const KNOWN_COMMANDS = new Set([
   'search',
   'mentions',
   'bookmarks',
+  'likes',
   'help',
   'whoami',
   'check',
@@ -152,7 +165,7 @@ program.addHelpText(
 
 program.name('bird').description('Post tweets and replies via Twitter/X GraphQL API').version(getCliVersion());
 
-const formatExample = (command: string, description: string) =>
+const formatExample = (command: string, description: string): string =>
   `${colors.command(`  ${command}`)}\n${colors.muted(`    ${description}`)}`;
 
 program.addHelpText(
@@ -194,7 +207,7 @@ type CredentialsOptions = {
   cookieSource?: CookieSource[];
 };
 
-function resolveCredentialsFromOptions(opts: CredentialsOptions) {
+function resolveCredentialsFromOptions(opts: CredentialsOptions): ReturnType<typeof resolveCredentials> {
   const cookieSource = opts.cookieSource?.length
     ? opts.cookieSource
     : (resolveCookieSourceOrder(config.cookieSource) ?? COOKIE_SOURCES);
@@ -215,9 +228,13 @@ type MediaSpec = { path: string; alt?: string; mime: string; buffer: Buffer };
 
 function resolveTimeoutMs(...values: Array<string | number | undefined | null>): number | undefined {
   for (const value of values) {
-    if (value === undefined || value === null || value === '') continue;
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
     const parsed = typeof value === 'number' ? value : Number(value);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
   }
   return undefined;
 }
@@ -241,17 +258,31 @@ function resolveQuoteDepthFromOptions(options: { quoteDepth?: string | number })
 
 function detectMime(path: string): string | null {
   const ext = path.toLowerCase();
-  if (ext.endsWith('.jpg') || ext.endsWith('.jpeg')) return 'image/jpeg';
-  if (ext.endsWith('.png')) return 'image/png';
-  if (ext.endsWith('.webp')) return 'image/webp';
-  if (ext.endsWith('.gif')) return 'image/gif';
-  if (ext.endsWith('.mp4') || ext.endsWith('.m4v')) return 'video/mp4';
-  if (ext.endsWith('.mov')) return 'video/quicktime';
+  if (ext.endsWith('.jpg') || ext.endsWith('.jpeg')) {
+    return 'image/jpeg';
+  }
+  if (ext.endsWith('.png')) {
+    return 'image/png';
+  }
+  if (ext.endsWith('.webp')) {
+    return 'image/webp';
+  }
+  if (ext.endsWith('.gif')) {
+    return 'image/gif';
+  }
+  if (ext.endsWith('.mp4') || ext.endsWith('.m4v')) {
+    return 'video/mp4';
+  }
+  if (ext.endsWith('.mov')) {
+    return 'video/quicktime';
+  }
   return null;
 }
 
 function loadMedia(opts: { media: string[]; alts: string[] }): MediaSpec[] {
-  if (opts.media.length === 0) return [];
+  if (opts.media.length === 0) {
+    return [];
+  }
   const specs: MediaSpec[] = [];
   for (const [index, path] of opts.media.entries()) {
     const mime = detectMime(path);
@@ -263,9 +294,15 @@ function loadMedia(opts: { media: string[]; alts: string[] }): MediaSpec[] {
   }
 
   const videoCount = specs.filter((m) => m.mime.startsWith('video/')).length;
-  if (videoCount > 1) throw new Error('Only one video can be attached');
-  if (videoCount === 1 && specs.length > 1) throw new Error('Video cannot be combined with other media');
-  if (specs.length > 4) throw new Error('Maximum 4 media attachments');
+  if (videoCount > 1) {
+    throw new Error('Only one video can be attached');
+  }
+  if (videoCount === 1 && specs.length > 1) {
+    throw new Error('Video cannot be combined with other media');
+  }
+  if (specs.length > 4) {
+    throw new Error('Maximum 4 media attachments');
+  }
   return specs;
 }
 
@@ -327,6 +364,7 @@ program
       'SearchTimeline',
       'UserArticlesTweets',
       'Bookmarks',
+      'Likes',
     ];
 
     if (cmdOpts.fresh) {
@@ -675,13 +713,13 @@ program
     if (!query) {
       const who = await client.getCurrentUser();
       const handle = normalizeHandle(who.user?.username);
-      if (!handle) {
+      if (handle) {
+        query = `@${handle}`;
+      } else {
         console.error(
           `${p('err')}Could not determine current user (${who.error ?? 'Unknown error'}). Use --user <handle>.`,
         );
         process.exit(1);
-      } else {
-        query = `@${handle}`;
       }
     }
 
@@ -700,6 +738,48 @@ program
   .command('bookmarks')
   .description('Get your bookmarked tweets')
   .option('-n, --count <number>', 'Number of bookmarks to fetch', '20')
+  .option('--folder-id <id>', 'Bookmark folder (collection) id')
+  .option('--json', 'Output as JSON')
+  .action(async (cmdOpts: { count?: string; json?: boolean; folderId?: string }) => {
+    const opts = program.opts();
+    const timeoutMs = resolveTimeoutFromOptions(opts);
+    const count = Number.parseInt(cmdOpts.count || '20', 10);
+
+    const { cookies, warnings } = await resolveCredentialsFromOptions(opts);
+
+    for (const warning of warnings) {
+      console.error(`${p('warn')}${warning}`);
+    }
+
+    if (!cookies.authToken || !cookies.ct0) {
+      console.error(`${p('err')}Missing required credentials`);
+      process.exit(1);
+    }
+
+    const client = new TwitterClient({ cookies, timeoutMs });
+    const folderId = cmdOpts.folderId ? extractBookmarkFolderId(cmdOpts.folderId) : null;
+    if (cmdOpts.folderId && !folderId) {
+      console.error(`${p('err')}Invalid --folder-id. Expected numeric ID or https://x.com/i/bookmarks/<id>.`);
+      process.exit(1);
+    }
+    const result = folderId
+      ? await client.getBookmarkFolderTimeline(folderId, count)
+      : await client.getBookmarks(count);
+
+    if (result.success && result.tweets) {
+      const emptyMessage = folderId ? 'No bookmarks found in folder.' : 'No bookmarks found.';
+      printTweets(result.tweets, { json: cmdOpts.json, emptyMessage });
+    } else {
+      console.error(`${p('err')}Failed to fetch bookmarks: ${result.error}`);
+      process.exit(1);
+    }
+  });
+
+// Likes command - get user's liked tweets
+program
+  .command('likes')
+  .description('Get your liked tweets')
+  .option('-n, --count <number>', 'Number of likes to fetch', '20')
   .option('--json', 'Output as JSON')
   .action(async (cmdOpts: { count?: string; json?: boolean }) => {
     const opts = program.opts();
@@ -719,12 +799,12 @@ program
     }
 
     const client = new TwitterClient({ cookies, timeoutMs, quoteDepth });
-    const result = await client.getBookmarks(count);
+    const result = await client.getLikes(count);
 
     if (result.success && result.tweets) {
-      printTweets(result.tweets, { json: cmdOpts.json, emptyMessage: 'No bookmarks found.' });
+      printTweets(result.tweets, { json: cmdOpts.json, emptyMessage: 'No liked tweets found.' });
     } else {
-      console.error(`${p('err')}Failed to fetch bookmarks: ${result.error}`);
+      console.error(`${p('err')}Failed to fetch likes: ${result.error}`);
       process.exit(1);
     }
   });

@@ -1,12 +1,31 @@
 # Changelog
 
-## 0.4.1 — Unreleased
+## 0.4.2 — Unreleased
+
+### Added
+- `likes` command to list your liked tweets (thanks @swairshah).
+
+### Changed
+- Query ID updater now tracks the Likes GraphQL operation.
+
+## 0.4.1 — 2025-12-31
+
+### Added
+- `bookmarks` command to list your bookmarked tweets.
+- `bookmarks --folder-id` to fetch bookmark folders (thanks @tylerseymour).
 
 ### Added
 - Quoted tweet data in JSON output + `--quote-depth` (thanks @alexknowshtml).
 
 ### Changed
 - Cookie extraction now uses `@steipete/sweet-cookie` (drops `sqlite3` CLI + custom browser readers in `bird`).
+- Query ID updater now tracks the Bookmarks GraphQL operation.
+- Lint rules stricter (block statements, no-negation-else, useConst/useTemplate, top-level regex, import extension enforcement).
+- `pnpm lint` now runs both Biome and oxlint (type-aware).
+
+### Tests
+- Coverage thresholds raised to 90% statements/lines/functions (80% branches).
+- Added targeted Twitter client coverage suites.
 
 ## 0.4.0 — 2025-12-26
 
