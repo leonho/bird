@@ -42,8 +42,12 @@ const QUERY_IDS: Record<OperationName, string> = {
 const TARGET_QUERY_ID_OPERATIONS = Object.keys(FALLBACK_QUERY_IDS) as Array<OperationName>;
 
 function normalizeQuoteDepth(value?: number): number {
-  if (value === undefined || value === null) return 1;
-  if (!Number.isFinite(value)) return 1;
+  if (value === undefined || value === null) {
+    return 1;
+  }
+  if (!Number.isFinite(value)) {
+    return 1;
+  }
   return Math.max(0, Math.floor(value));
 }
 
@@ -729,8 +733,12 @@ export class TwitterClient {
   }
 
   private unwrapTweetResult(result: GraphqlTweetResult | undefined): GraphqlTweetResult | undefined {
-    if (!result) return undefined;
-    if (result.tweet) return result.tweet;
+    if (!result) {
+      return undefined;
+    }
+    if (result.tweet) {
+      return result.tweet;
+    }
     return result;
   }
 

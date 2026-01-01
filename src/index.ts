@@ -245,9 +245,13 @@ function resolveTimeoutFromOptions(options: { timeout?: string | number }): numb
 
 function resolveQuoteDepth(...values: Array<string | number | undefined | null>): number | undefined {
   for (const value of values) {
-    if (value === undefined || value === null || value === '') continue;
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
     const parsed = typeof value === 'number' ? value : Number.parseInt(value, 10);
-    if (Number.isFinite(parsed) && parsed >= 0) return Math.floor(parsed);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return Math.floor(parsed);
+    }
   }
   return undefined;
 }
