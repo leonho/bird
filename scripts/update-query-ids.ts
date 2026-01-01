@@ -14,6 +14,7 @@ const TARGET_OPERATIONS = [
   'TweetDetail',
   'SearchTimeline',
   'Bookmarks',
+  'BookmarkFolderTimeline',
   'Following',
   'Followers',
   'Likes',

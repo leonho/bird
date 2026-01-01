@@ -10,6 +10,7 @@
 ### Changed
 - Query ID updater now tracks the Likes GraphQL operation.
 - Query ID updater now tracks Following/Followers GraphQL operations.
+- Query ID updater now tracks BookmarkFolderTimeline and keeps bookmark query IDs seeded.
 - `following`/`followers` JSON user fields are now camelCase (`followersCount`, `followingCount`, `isBlueVerified`, `profileImageUrl`, `createdAt`).
 ## 0.4.1 — 2025-12-31
 
