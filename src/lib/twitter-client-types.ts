@@ -241,6 +241,8 @@ export interface SearchResult {
   success: boolean;
   tweets?: TweetData[];
   error?: string;
+  /** Cursor for fetching the next page of results */
+  nextCursor?: string;
 }
 
 export interface CurrentUserResult {

@@ -13,6 +13,8 @@ export interface TimelineFetchOptions {
 /** Options for paged timeline fetch methods */
 export interface TimelinePaginationOptions extends TimelineFetchOptions {
   maxPages?: number;
+  /** Starting cursor for pagination (resume from previous fetch) */
+  cursor?: string;
 }
 
 export interface TwitterClientTimelineMethods {
@@ -198,7 +200,7 @@ export function withTimelines<TBase extends AbstractConstructor<TwitterClientBas
       const pageSize = 20;
       const seen = new Set<string>();
       const tweets: TweetData[] = [];
-      let cursor: string | undefined;
+      let cursor: string | undefined = options.cursor;
       let pagesFetched = 0;
       const { includeRaw = false, maxPages } = options;
 
@@ -341,12 +343,13 @@ export function withTimelines<TBase extends AbstractConstructor<TwitterClientBas
           break;
         }
         if (maxPages && pagesFetched >= maxPages) {
+          cursor = page.cursor;
           break;
         }
         cursor = page.cursor;
       }
 
-      return { success: true, tweets };
+      return { success: true, tweets, nextCursor: cursor };
     }
 
     private async getBookmarkFolderTimelinePaged(
@@ -358,7 +361,7 @@ export function withTimelines<TBase extends AbstractConstructor<TwitterClientBas
       const pageSize = 20;
       const seen = new Set<string>();
       const tweets: TweetData[] = [];
-      let cursor: string | undefined;
+      let cursor: string | undefined = options.cursor;
       let pagesFetched = 0;
       const { includeRaw = false, maxPages } = options;
 
@@ -517,12 +520,13 @@ export function withTimelines<TBase extends AbstractConstructor<TwitterClientBas
           break;
         }
         if (maxPages && pagesFetched >= maxPages) {
+          cursor = page.cursor;
           break;
         }
         cursor = page.cursor;
       }
 
-      return { success: true, tweets };
+      return { success: true, tweets, nextCursor: cursor };
     }
 
     private async fetchWithRetry(url: string, init: RequestInit): Promise<Response> {

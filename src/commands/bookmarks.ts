@@ -11,6 +11,7 @@ export function registerBookmarksCommand(program: Command, ctx: CliContext): voi
     .option('--folder-id <id>', 'Bookmark folder (collection) id')
     .option('--all', 'Fetch all bookmarks (paged)')
     .option('--max-pages <number>', 'Stop after N pages when using --all')
+    .option('--cursor <string>', 'Resume pagination from a cursor')
     .option('--json', 'Output as JSON')
     .option('--json-full', 'Output as JSON with full raw API response in _raw field')
     .action(
@@ -21,6 +22,7 @@ export function registerBookmarksCommand(program: Command, ctx: CliContext): voi
         folderId?: string;
         all?: boolean;
         maxPages?: string;
+        cursor?: string;
       }) => {
         const opts = program.opts();
         const timeoutMs = ctx.resolveTimeoutFromOptions(opts);
@@ -42,7 +44,8 @@ export function registerBookmarksCommand(program: Command, ctx: CliContext): voi
           console.error(`${ctx.p('err')}--max-pages requires --all.`);
           process.exit(1);
         }
-        if (!cmdOpts.all && (!Number.isFinite(count) || count <= 0)) {
+        const usePagination = cmdOpts.all || cmdOpts.cursor;
+        if (!usePagination && (!Number.isFinite(count) || count <= 0)) {
           console.error(`${ctx.p('err')}Invalid --count. Expected a positive integer.`);
           process.exit(1);
         }
@@ -59,18 +62,24 @@ export function registerBookmarksCommand(program: Command, ctx: CliContext): voi
         }
         const includeRaw = cmdOpts.jsonFull ?? false;
         const timelineOptions = { includeRaw };
-        const paginationOptions = { includeRaw, maxPages };
+        const paginationOptions = { includeRaw, maxPages, cursor: cmdOpts.cursor };
         const result = folderId
-          ? cmdOpts.all
+          ? usePagination
             ? await client.getAllBookmarkFolderTimeline(folderId, paginationOptions)
             : await client.getBookmarkFolderTimeline(folderId, count, timelineOptions)
-          : cmdOpts.all
+          : usePagination
             ? await client.getAllBookmarks(paginationOptions)
             : await client.getBookmarks(count, timelineOptions);
 
         if (result.success && result.tweets) {
           const emptyMessage = folderId ? 'No bookmarks found in folder.' : 'No bookmarks found.';
-          ctx.printTweets(result.tweets, { json: cmdOpts.json || cmdOpts.jsonFull, emptyMessage });
+          const isJson = cmdOpts.json || cmdOpts.jsonFull;
+          if (isJson && result.nextCursor) {
+            // Output with nextCursor for pagination
+            console.log(JSON.stringify({ tweets: result.tweets, nextCursor: result.nextCursor }, null, 2));
+          } else {
+            ctx.printTweets(result.tweets, { json: isJson, emptyMessage });
+          }
         } else {
           console.error(`${ctx.p('err')}Failed to fetch bookmarks: ${result.error}`);
           process.exit(1);
